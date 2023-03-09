@@ -19,7 +19,7 @@ Base = automap_base()
 
 # Base.prepare(autoload_with=engine)
 Base.prepare(engine, reflect=True)
-print(Base.classes.keys())
+# print(Base.classes.keys())
 
 
 # reflect the tables
@@ -43,7 +43,7 @@ def home():
         f"/api/v1.0/stations<br/>"
         f"/api/v1.0/tobs<br/>"
         f"/api/v1.0/start<br/>"
-        f"/api/v1.0//api/v1.0/start/end"
+        f"/api/v1.0/start/end"
     )
 
 # 4. Convert the query results from your precipitation analysis (i.e. retrieve only the last 12 months of data) 
@@ -79,13 +79,13 @@ def precipitation():
 def stations():
     session = Session(engine)
     
-    results = session.query(station.station).count()
+    results = session.query(station.station).all()
 
     session.close()
 
     stations_list = []
     for x in results: 
-        stations_list.append(x)
+        stations_list.append(x[0])
 
     return jsonify(stations_list)
 
@@ -103,7 +103,7 @@ def tobs():
 
     most_active_station = session.query(measurement.station).group_by(measurement.station).order_by(func.count().desc()).limit(1)[0][0]
 
-    results = session.query(measurement.date, measurement.tobs).filter(measurement.station == most_active_station, measurement.date > year_prior).all()
+    results = session.query(measurement.date, measurement.tobs).filter(measurement.station == most_active_station, measurement.date >= year_prior).all()
 
     # close query session
     session.close()
@@ -120,15 +120,51 @@ def tobs():
 # 7. Return a JSON list of the minimum temperature, the average temperature, and the maximum temperature for a specified start
 @app.route("/api/v1.0/<start>")
 def start(start):
-    print("Server received request for 'About' page...")
-    return "Welcome to my 'About' page!"
+    session = Session(engine)
+    
+    date_object = datetime.strptime(start, '%Y-%m-%d').date()
+    start_date = date_object
+
+    most_active_station = session.query(measurement.station).group_by(measurement.station).order_by(func.count().desc()).limit(1)[0][0]
+
+    results = session.query(func.min(measurement.tobs), func.max(measurement.tobs), func.avg(measurement.tobs)).filter(measurement.station == most_active_station, measurement.date >= start_date).all()
+
+    # close query session
+    session.close()
+
+    start_data = []
+    for x in results:
+        start_data.append(f"Lowest Temperature: {x[0]}")
+        start_data.append(f"Highest Temperature: {x[1]}")
+        start_data.append(f"Average Temperature: {x[2]}")
+    
+    return jsonify(start_data)
 
 
 # 8. For a specified start date and end date, calculate TMIN, TAVG, and TMAX for the dates from the start date to the end date, inclusive.
 @app.route("/api/v1.0/<start>/<end>")
 def start_end(start, end):
-    print("Server received request for 'About' page...")
-    return "Welcome to my 'About' page!"
+    session = Session(engine)
+    
+    start_date = datetime.strptime(start, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end, '%Y-%m-%d').date()
+
+    most_active_station = session.query(measurement.station).group_by(measurement.station).order_by(func.count().desc()).limit(1)[0][0]
+
+    results = session.query(func.min(measurement.tobs), func.max(measurement.tobs), func.avg(measurement.tobs)).filter(measurement.station == most_active_station, measurement.date >= start_date,measurement.date <= end_date).all()
+
+    # close query session
+    session.close()
+
+    start_end_data = []
+    for x in results:
+        TMIN = x[0]
+        TAVG = x[2]
+        TMAX = x[1]
+        start_end_data.append(f"Lowest Temperature: {TMIN}")
+        start_end_data.append(f"Highest Temperature: {TMAX}")
+        start_end_data.append(f"Average Temperature: {TAVG}")
+    return jsonify(start_end_data)
 
 
 
